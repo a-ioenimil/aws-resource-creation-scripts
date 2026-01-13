@@ -1,0 +1,19 @@
+====================================================
+   Welcome to AWS S3!
+====================================================
+
+This bucket was created by the AutomationLab scripts.
+
+Creation Details:
+  - Date: 2026-01-12 16:14:46 GMT
+  - Project: AutomationLab
+  - Environment: dev
+  - Region: us-east-1
+
+This is a sample file to demonstrate S3 object upload
+capabilities using the AWS CLI automation scripts.
+
+For more information, visit:
+https://docs.aws.amazon.com/s3/
+
+====================================================

@@ -1,0 +1,30 @@
+# AWS Key Pairs
+keys/*.pem
+*.pem
+
+# Go Binaries
+bin/
+aws-automator
+
+# Resource tracking
+created_resources.json
+created_resources.json.lock
+created_resources.json.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
