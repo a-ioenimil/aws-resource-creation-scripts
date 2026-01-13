@@ -2,6 +2,9 @@
 keys/*.pem
 *.pem
 
+# Environment variables
+.env
+
 # Go Binaries
 bin/
 aws-automator

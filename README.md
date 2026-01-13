@@ -43,7 +43,40 @@ aws-resource-creation-scripts/
 
 ## ⚙️ Prerequisites
 
-### 1. Install Go (Optional - for CLI Tool)
+### 1. Environment Configuration
+
+Copy the example environment file and customize it:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to configure your settings:
+
+```bash
+# AWS Configuration
+AWS_REGION=us-east-1                    # Your preferred AWS region
+
+# Project Configuration
+PROJECT_TAG=AutomationLab               # Tag to identify your resources
+ENVIRONMENT_TAG=dev                     # Environment name (dev/staging/prod)
+
+# EC2 Configuration
+INSTANCE_TYPE=t2.micro                  # EC2 instance type
+INSTANCE_NAME=AutomationLab-Instance    # Default instance name
+
+# Security Group Configuration
+SECURITY_GROUP_NAME=devops-sg           # Security group name
+SSH_CIDR=0.0.0.0/0                     # SSH access (restrict in production!)
+HTTP_CIDR=0.0.0.0/0                    # HTTP access
+
+# S3 Configuration
+S3_BUCKET_PREFIX=automation-lab         # Bucket name prefix
+```
+
+**Important**: The `.env` file is gitignored to protect your configuration. Always use `.env.example` as a template.
+
+### 2. Install Go (Optional - for CLI Tool)
 
 If you want to use the interactive Go CLI tool, you need to have Go installed (version 1.16+).
 

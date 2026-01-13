@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Source .env file if it exists
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="$PROJECT_ROOT/.env"
+
+if [ -f "$ENV_FILE" ]; then
+    # Export all variables from .env file
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
+
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 
 export PROJECT_TAG="AutomationLab"
