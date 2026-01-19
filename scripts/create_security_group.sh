@@ -15,6 +15,7 @@ source "$PROJECT_ROOT/config/config.sh"
 SG_NAME="$SECURITY_GROUP_NAME"
 SG_DESC="$SECURITY_GROUP_DESC"
 REGION="$AWS_REGION"
+DRY_RUN=false
 
 
 show_help() {
@@ -31,6 +32,10 @@ parse_args() {
             -r|--region)
                 REGION="$2"
                 shift 2
+                ;;
+            -d|--dry-run)
+                DRY_RUN=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -65,6 +70,17 @@ create_security_group() {
     fi
     log_info "Using VPC: $vpc_id"
     
+    # Check for Dry Run
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_create "Would create Security Group '$SG_NAME' in VPC '$vpc_id'"
+        log_plan "  -> Description: $SG_DESC"
+        log_plan_modify "Would tag Security Group with:"
+        log_plan "  -> $PROJECT_TAG_KEY=$PROJECT_TAG"
+        log_plan "  -> Name=$SG_NAME"
+        echo "sg-dry-run-placeholder"
+        return 0
+    fi
+
     # Create the security group
     local sg_id=$(aws ec2 create-security-group \
         --group-name "$SG_NAME" \
@@ -100,6 +116,13 @@ add_ssh_rule() {
     
     log_info "Adding SSH rule (port $SSH_PORT) from $SSH_CIDR..."
     
+    if [ "$DRY_RUN" = "true" ]; then
+        local log_sg_id="$sg_id"
+        if [[ "$sg_id" == *"placeholder"* ]]; then log_sg_id="(known after creation)"; fi
+        log_plan_create "Would add inbound rule to $log_sg_id: TCP 22 (SSH) from $SSH_CIDR"
+        return 0
+    fi
+
     # Check if rule already exists
     local existing_rule=$(aws ec2 describe-security-groups \
         --group-ids "$sg_id" \
@@ -127,6 +150,13 @@ add_http_rule() {
     
     log_info "Adding HTTP rule (port $HTTP_PORT) from $HTTP_CIDR..."
     
+    if [ "$DRY_RUN" = "true" ]; then
+        local log_sg_id="$sg_id"
+        if [[ "$sg_id" == *"placeholder"* ]]; then log_sg_id="(known after creation)"; fi
+        log_plan_create "Would add inbound rule to $log_sg_id: TCP 80 (HTTP) from $HTTP_CIDR"
+        return 0
+    fi
+
     # Check if rule already exists
     local existing_rule=$(aws ec2 describe-security-groups \
         --group-ids "$sg_id" \
@@ -152,6 +182,10 @@ add_http_rule() {
 display_security_group_info() {
     local sg_id="$1"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        return 0
+    fi
+
     print_separator
     echo -e "${GREEN}Security Group Created Successfully${NC}"
     print_separator

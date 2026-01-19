@@ -9,6 +9,8 @@ This project provides a comprehensive suite of tools to automate the provisionin
 ### Features
 
 - **Interactive CLI Tool**: A Go-based menu system to guide you through creation and cleanup
+- **Plan Mode (Dry Run)**: Preview resources before creation with Terraform-style output (`+` create, `~` modify, `-` delete)
+- **Remote State Backend**: Optional S3-based state syncing for team collaboration
 - **EC2 Instance Creation**: Automated key pair generation, instance launch with Amazon Linux 2 AMI, and tagging
 - **Security Group Management**: Create security groups with SSH (port 22) and HTTP (port 80) access rules
 - **S3 Bucket Setup**: Create uniquely-named buckets with versioning enabled and sample file upload
@@ -35,7 +37,8 @@ aws-resource-creation-scripts/
 │   ├── create_security_group.sh        # Security group creation
 │   ├── create_ec2.sh                   # EC2 instance creation
 │   ├── create_s3_bucket.sh             # S3 bucket creation
-│   └── cleanup_resources.sh            # Resource cleanup
+│   ├── cleanup_resources.sh            # Resource cleanup
+│   └── init_state.sh                   # Initialize S3 state backend
 ├── keys/                               # Generated EC2 key pairs (gitignored)
 ├── bin/                                # Compiled binaries (gitignored)
 └── files/                              # Sample files for S3 upload
@@ -62,7 +65,7 @@ PROJECT_TAG=AutomationLab               # Tag to identify your resources
 ENVIRONMENT_TAG=dev                     # Environment name (dev/staging/prod)
 
 # EC2 Configuration
-INSTANCE_TYPE=t2.micro                  # EC2 instance type
+INSTANCE_TYPE=t3.micro                  # EC2 instance type (t3.micro recommended)
 INSTANCE_NAME=AutomationLab-Instance    # Default instance name
 
 # Security Group Configuration
@@ -72,6 +75,12 @@ HTTP_CIDR=0.0.0.0/0                    # HTTP access
 
 # S3 Configuration
 S3_BUCKET_PREFIX=automation-lab         # Bucket name prefix
+
+# Remote State Backend (Optional)
+# Leave S3_STATE_BUCKET empty to use local-only state
+S3_STATE_BUCKET=                        # S3 bucket for remote state
+S3_STATE_KEY=state/created_resources.json
+S3_STATE_REGION=${AWS_REGION}
 ```
 
 **Important**: The `.env` file is gitignored to protect your configuration. Always use `.env.example` as a template.
@@ -205,12 +214,26 @@ The Go CLI provides an interactive menu and status tracking.
 make build
 ```
 
-**2. Run in Interactive Mode:**
+**2. Preview Changes (Dry Run):**
+```bash
+# See what resources would be created
+./bin/aws-automator plan -r all
+```
+
+**Output Example:**
+```text
+[PLAN] + Would create Security Group: devops-sg
+[PLAN] + Would launch EC2 Instance:
+[PLAN]   -> Type: t3.micro
+[PLAN]   -> AMI: ami-0abcdef1234567890
+```
+
+**3. Run in Interactive Mode:**
 ```bash
 ./bin/aws-automator interactive
 ```
 
-**3. Run in Auto Mode (One-click setup):**
+**4. Run in Auto Mode (One-click setup):**
 ```bash
 ./bin/aws-automator auto
 ```
@@ -256,8 +279,33 @@ This tool wraps the bash scripts in a convenient interface. It maintains a state
 
 *   **Interactive Mode**: `aws-automator interactive` - Select actions from a menu.
 *   **Auto Creation**: `aws-automator auto` - Runs creation scripts in the correct order with dependency handling.
+*   **Plan Mode**: `aws-automator plan -r all` - Simulates execution and shows proposed changes (Dry Run).
 *   **Status View**: `aws-automator status` - Shows a table of created instances, SGs, keys, and buckets.
 *   **Safe Cleanup**: `aws-automator cleanup` - Prompts for confirmation before deleting tracked resources.
+*   **State Management**: `aws-automator state` - Manage remote S3 state backend.
+
+### Remote State Backend
+
+For team collaboration, you can store the state file in S3:
+
+**1. Initialize a state bucket:**
+```bash
+./bin/aws-automator state init --bucket my-state-bucket
+```
+
+**2. Configure your `.env`:**
+```bash
+S3_STATE_BUCKET=my-state-bucket
+```
+
+**3. Sync state manually (if needed):**
+```bash
+./bin/aws-automator state pull   # Download from S3
+./bin/aws-automator state push   # Upload to S3
+./bin/aws-automator state show   # Show configuration
+```
+
+Once configured, state automatically syncs on every resource change.
 
 ### Bash Scripts
 
@@ -275,6 +323,7 @@ Creates a security group with SSH (port 22) and HTTP (port 80) access.
 |--------|-------------|---------|
 | `-n, --name` | Security group name | `devops-sg` |
 | `-r, --region` | AWS region | `us-east-1` |
+| `-d, --dry-run` | Simulate without creating | - |
 | `-h, --help` | Show help | - |
 
 **Example:**
@@ -472,14 +521,6 @@ BucketAlreadyExists
 ```
 **Solution:** S3 bucket names are globally unique. The script generates unique names, but if you specify a name manually, ensure it's unique.
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## 📝 Challenges and Resolutions
 
 | Challenge | Resolution |
@@ -491,16 +532,7 @@ BucketAlreadyExists
 | Key pair private key only shown once | Immediate save to file with proper permissions |
 | AWS CLI may not be installed | Added automatic installation for Linux and macOS |
 
-## 📜 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## 👥 Authors
 
 - **Isaac Obo Enimil** - Initial work
-
-## 🙏 Acknowledgments
-
-- AWS Documentation for CLI reference
-- AmaliTech for the DevOps training program
 

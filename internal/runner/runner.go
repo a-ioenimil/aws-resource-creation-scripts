@@ -9,14 +9,15 @@ import (
 	"github.com/a-ioenimil/aws-resource-creation-scripts/aws-automator/internal/ui"
 )
 
-func ExecuteScript(scriptName string) bool {
+func ExecuteScript(scriptName string, args ...string) bool {
 	scriptPath := filepath.Join(config.ScriptsDir, scriptName)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		ui.Red.Printf("❌ Script not found: %s\n", scriptPath)
 		return false
 	}
 
-	command := exec.Command("bash", scriptPath)
+	cmdArgs := append([]string{scriptPath}, args...)
+	command := exec.Command("bash", cmdArgs...)
 	command.Dir = config.ProjectRoot
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

@@ -5,6 +5,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 log_info() {
@@ -15,12 +16,151 @@ log_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
 }
 
+log_plan() {
+    echo -e "${CYAN}[PLAN]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
+}
+
+log_plan_create() {
+    echo -e "${CYAN}[PLAN]${NC} ${GREEN}+${NC} $1" >&2
+}
+
+log_plan_modify() {
+    echo -e "${CYAN}[PLAN]${NC} ${YELLOW}~${NC} $1" >&2
+}
+
+log_plan_delete() {
+    echo -e "${CYAN}[PLAN]${NC} ${RED}-${NC} $1" >&2
+}
+
 log_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
 }
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
+}
+
+# =============================================================================
+# Remote State Management (S3 Backend)
+# =============================================================================
+
+# Check if remote state is enabled
+is_remote_state_enabled() {
+    [ -n "$S3_STATE_BUCKET" ]
+}
+
+# Pull state from S3 to local file
+pull_state() {
+    if ! is_remote_state_enabled; then
+        return 0
+    fi
+
+    log_info "Pulling state from s3://$S3_STATE_BUCKET/$S3_STATE_KEY..."
+    
+    local tmp_file=$(mktemp)
+    
+    if aws s3 cp "s3://$S3_STATE_BUCKET/$S3_STATE_KEY" "$tmp_file" \
+        --region "$S3_STATE_REGION" 2>/dev/null; then
+        
+        # Validate downloaded JSON
+        if jq empty "$tmp_file" 2>/dev/null; then
+            mv "$tmp_file" "$RESOURCE_TRACKING_FILE"
+            chmod 644 "$RESOURCE_TRACKING_FILE"
+            log_success "State pulled successfully"
+            return 0
+        else
+            log_error "Downloaded state is not valid JSON"
+            rm -f "$tmp_file"
+            return 1
+        fi
+    else
+        # State doesn't exist yet in S3 - that's OK for first run
+        log_info "No remote state found (first run or bucket is empty)"
+        rm -f "$tmp_file"
+        return 0
+    fi
+}
+
+# Push local state to S3
+push_state() {
+    if ! is_remote_state_enabled; then
+        return 0
+    fi
+    
+    if [ ! -f "$RESOURCE_TRACKING_FILE" ]; then
+        log_warning "No local state file to push"
+        return 1
+    fi
+
+    log_info "Pushing state to s3://$S3_STATE_BUCKET/$S3_STATE_KEY..."
+    
+    if aws s3 cp "$RESOURCE_TRACKING_FILE" "s3://$S3_STATE_BUCKET/$S3_STATE_KEY" \
+        --region "$S3_STATE_REGION" 2>/dev/null; then
+        log_success "State pushed successfully"
+        return 0
+    else
+        log_error "Failed to push state to S3"
+        return 1
+    fi
+}
+
+# Initialize the remote state bucket (with versioning)
+init_state_bucket() {
+    local bucket_name="$1"
+    local region="${2:-$AWS_REGION}"
+    
+    if [ -z "$bucket_name" ]; then
+        log_error "Bucket name is required"
+        return 1
+    fi
+    
+    log_info "Creating state bucket: $bucket_name"
+    
+    # Create the bucket
+    if [ "$region" == "us-east-1" ]; then
+        aws s3api create-bucket \
+            --bucket "$bucket_name" \
+            --region "$region" 2>/dev/null
+    else
+        aws s3api create-bucket \
+            --bucket "$bucket_name" \
+            --region "$region" \
+            --create-bucket-configuration LocationConstraint="$region" 2>/dev/null
+    fi
+    
+    if [ $? -ne 0 ]; then
+        # Bucket might already exist - check if we own it
+        if aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+            log_warning "Bucket already exists, using existing bucket"
+        else
+            log_error "Failed to create or access bucket: $bucket_name"
+            return 1
+        fi
+    fi
+    
+    # Enable versioning (critical for state recovery)
+    log_info "Enabling versioning on state bucket..."
+    aws s3api put-bucket-versioning \
+        --bucket "$bucket_name" \
+        --versioning-configuration Status=Enabled \
+        --region "$region"
+    
+    # Add tags
+    log_info "Tagging state bucket..."
+    aws s3api put-bucket-tagging \
+        --bucket "$bucket_name" \
+        --tagging "TagSet=[{Key=Purpose,Value=TerraformState},{Key=ManagedBy,Value=aws-automator}]" \
+        --region "$region" 2>/dev/null || true
+    
+    log_success "State bucket initialized: $bucket_name"
+    log_info "Add the following to your .env file:"
+    echo ""
+    echo "  S3_STATE_BUCKET=$bucket_name"
+    echo "  S3_STATE_KEY=state/created_resources.json"
+    echo "  S3_STATE_REGION=$region"
+    echo ""
+    
+    return 0
 }
 
 

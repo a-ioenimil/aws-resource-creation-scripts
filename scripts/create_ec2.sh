@@ -17,6 +17,7 @@ KEY_FILE="$PROJECT_ROOT/keys/${KEY_PAIR_NAME}.pem"
 TYPE="$INSTANCE_TYPE"
 SG_ID=""
 REGION="$AWS_REGION"
+DRY_RUN=false
 
 show_help() {
     head -35 "$0" | grep -E "^#" | sed 's/^# //' | sed 's/^#//'
@@ -45,6 +46,10 @@ parse_args() {
             -r|--region)
                 REGION="$2"
                 shift 2
+                ;;
+            -d|--dry-run)
+                DRY_RUN=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -81,6 +86,12 @@ create_key_pair() {
         fi
     fi
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_create "Would create Key Pair '$KEY_NAME' in '$REGION'"
+        log_plan_create "  -> Saving to $KEY_FILE"
+        return 0
+    fi
+
     # Create the key pair
     aws ec2 create-key-pair \
         --key-name "$KEY_NAME" \
@@ -117,18 +128,33 @@ get_or_create_security_group() {
     log_info "Checking for existing security group: $SECURITY_GROUP_NAME"
     
     # Try to get existing security group
-    SG_ID=$(security_group_exists "$SECURITY_GROUP_NAME" "$REGION")
+    SG_ID=$(security_group_exists "$SECURITY_GROUP_NAME" "$REGION" || true)
     
     if [ -n "$SG_ID" ]; then
         log_info "Using existing security group: $SG_ID"
         return 0
     fi
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_create "Would create Security Group: $SECURITY_GROUP_NAME"
+        log_plan_create "Would add rules to Security Group"
+        SG_ID="sg-dry-run-placeholder"
+        return 0
+    fi
+
     log_info "Creating new security group..."
     
     # Get the default VPC ID
     local vpc_id=$(get_default_vpc_id)
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan "Would create Security Group '$SECURITY_GROUP_NAME' in VPC '$vpc_id'"
+        log_plan "  -> Description: $SECURITY_GROUP_DESC"
+        log_plan "Would add inbound rules for SSH (22) and HTTP (80)"
+        SG_ID="sg-dry-run-placeholder"
+        return 0
+    fi
+
     # Create security group
     SG_ID=$(aws ec2 create-security-group \
         --group-name "$SECURITY_GROUP_NAME" \
@@ -172,6 +198,20 @@ launch_ec2_instance() {
     local ami_id=$(get_ami_id "$REGION")
     log_info "Using AMI: $ami_id"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        local log_sg_id="$SG_ID"
+        if [[ "$SG_ID" == *"placeholder"* ]]; then log_sg_id="(known after creation)"; fi
+
+        log_plan_create "Would launch EC2 Instance:"
+        log_plan "  -> AMI: $ami_id"
+        log_plan "  -> Type: $TYPE"
+        log_plan "  -> Key: $KEY_NAME"
+        log_plan "  -> SG: $log_sg_id"
+        log_plan "  -> Name: $INSTANCE_NAME_VAR"
+        echo "i-dry-run-placeholder"
+        return 0
+    fi
+
     # Launch the instance
     local instance_info=$(aws ec2 run-instances \
         --image-id "$ami_id" \
@@ -180,6 +220,8 @@ launch_ec2_instance() {
         --security-group-ids "$SG_ID" \
         --tag-specifications \
             "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME_VAR},{Key=$PROJECT_TAG_KEY,Value=$PROJECT_TAG},{Key=Environment,Value=$ENVIRONMENT_TAG}]" \
+            "ResourceType=volume,Tags=[{Key=Name,Value=$INSTANCE_NAME_VAR-vol},{Key=$PROJECT_TAG_KEY,Value=$PROJECT_TAG},{Key=Environment,Value=$ENVIRONMENT_TAG}]" \
+            "ResourceType=network-interface,Tags=[{Key=Name,Value=$INSTANCE_NAME_VAR-eni},{Key=$PROJECT_TAG_KEY,Value=$PROJECT_TAG},{Key=Environment,Value=$ENVIRONMENT_TAG}]" \
         --region "$REGION" \
         --output json)
     
@@ -209,6 +251,11 @@ launch_ec2_instance() {
 wait_and_get_public_ip() {
     local instance_id="$1"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "(known after creation)" 
+        return 0
+    fi
+
     # Wait for instance to be running
     wait_for_instance_running "$instance_id" "$REGION"
     
@@ -236,6 +283,10 @@ display_instance_info() {
     local instance_id="$1"
     local public_ip="$2"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        return 0
+    fi
+
     print_separator
     echo -e "${GREEN}EC2 Instance Created Successfully${NC}"
     print_separator

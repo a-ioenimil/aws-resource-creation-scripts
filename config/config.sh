@@ -14,6 +14,9 @@ fi
 
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 
+# Disable AWS CLI Pager to prevent hanging on output
+export AWS_PAGER=""
+
 export PROJECT_TAG="AutomationLab"
 export PROJECT_TAG_KEY="Project"
 export ENVIRONMENT_TAG="${ENVIRONMENT_TAG:-dev}"
@@ -21,7 +24,7 @@ export ENVIRONMENT_TAG="${ENVIRONMENT_TAG:-dev}"
 export KEY_PAIR_NAME="${KEY_PAIR_NAME:-automation-lab-keypair}"
 export KEY_PAIR_FILE="${KEY_PAIR_FILE:-./automation-lab-keypair.pem}"
 
-export INSTANCE_TYPE="${INSTANCE_TYPE:-t2.micro}"
+export INSTANCE_TYPE="${INSTANCE_TYPE:-t3.micro}"
 export INSTANCE_NAME="${INSTANCE_NAME:-AutomationLab-Instance}"
 
 get_ami_id() {
@@ -107,8 +110,18 @@ export S3_SAMPLE_CONTENT="${S3_SAMPLE_CONTENT:-Welcome to AWS S3! This bucket wa
 # File to store created resource IDs for cleanup (MY STATE MANAGEMENT)
 export RESOURCE_TRACKING_FILE="${RESOURCE_TRACKING_FILE:-./created_resources.json}"
 
+# Remote State Backend (S3)
+export S3_STATE_BUCKET="${S3_STATE_BUCKET:-}"
+export S3_STATE_KEY="${S3_STATE_KEY:-state/created_resources.json}"
+export S3_STATE_REGION="${S3_STATE_REGION:-$AWS_REGION}"
+
 # Initialize or load resource tracking
 init_resource_tracking() {
+    # Pull from S3 if remote state is enabled
+    if is_remote_state_enabled; then
+        pull_state
+    fi
+
     if [ ! -f "$RESOURCE_TRACKING_FILE" ]; then
         echo '{"instances":[],"security_groups":[],"key_pairs":[],"s3_buckets":[]}' > "$RESOURCE_TRACKING_FILE"
         chmod 644 "$RESOURCE_TRACKING_FILE"
@@ -145,6 +158,12 @@ track_resource() {
     local resource_type="$1"  # instances, security_groups, key_pairs, s3_buckets
     local resource_id="$2"
     
+    # In dry-run mode, we just log and return
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan "Would track resource: $resource_type = $resource_id"
+        return 0
+    fi
+
     init_resource_tracking
     
     local lock_file="${RESOURCE_TRACKING_FILE}.lock"
@@ -171,6 +190,11 @@ track_resource() {
         # Atomic move to prevent corruption
         mv "$tmp_file" "$RESOURCE_TRACKING_FILE"
         chmod 644 "$RESOURCE_TRACKING_FILE"
+        
+        # Sync to S3 if remote state is enabled
+        if is_remote_state_enabled; then
+            push_state
+        fi
     else
         log_error "Failed to update resource tracking file"
         rm -f "$tmp_file"

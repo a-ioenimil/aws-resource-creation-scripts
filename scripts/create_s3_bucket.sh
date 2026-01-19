@@ -14,6 +14,7 @@ source "$PROJECT_ROOT/config/config.sh"
 BUCKET_PREFIX="$S3_BUCKET_PREFIX"
 REGION="$AWS_REGION"
 UPLOAD_FILE=""
+DRY_RUN=false
 
 show_help() {
     head -30 "$0" | grep -E "^#" | sed 's/^# //' | sed 's/^#//'
@@ -33,6 +34,10 @@ parse_args() {
             -f|--file)
                 UPLOAD_FILE="$2"
                 shift 2
+                ;;
+            -d|--dry-run)
+                DRY_RUN=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -57,6 +62,12 @@ generate_unique_bucket_name() {
 create_s3_bucket() {
     local bucket_name="$1"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_create "Would create S3 bucket: $bucket_name in $REGION"
+        log_plan "  -> With location constraint: $REGION"
+        return 0
+    fi
+
     log_info "Creating S3 bucket: $bucket_name"
     
     # Check if bucket already exists
@@ -97,6 +108,11 @@ enable_bucket_versioning() {
     
     log_info "Enabling versioning on bucket: $bucket_name"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_modify "Would enable versioning for bucket: $bucket_name"
+        return 0
+    fi
+
     aws s3api put-bucket-versioning \
         --bucket "$bucket_name" \
         --versioning-configuration Status=Enabled
@@ -114,6 +130,13 @@ set_bucket_tags() {
     
     log_info "Setting bucket tags..."
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_modify "Would set tags for bucket: $bucket_name"
+        log_plan "  -> $PROJECT_TAG_KEY=$PROJECT_TAG"
+        log_plan "  -> Environment=$ENVIRONMENT_TAG"
+        return 0
+    fi
+
     aws s3api put-bucket-tagging \
         --bucket "$bucket_name" \
         --tagging "TagSet=[{Key=$PROJECT_TAG_KEY,Value=$PROJECT_TAG},{Key=Environment,Value=$ENVIRONMENT_TAG},{Key=Name,Value=$bucket_name}]"
@@ -130,6 +153,11 @@ set_bucket_policy() {
     
     log_info "Setting bucket policy..."
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_modify "Would set bucket policy for: $bucket_name"
+        return 0
+    fi
+
     # Get the current AWS account ID
     local account_id=$(aws sts get-caller-identity --query 'Account' --output text)
     
@@ -216,6 +244,11 @@ upload_file_to_bucket() {
     
     local file_name=$(basename "$file_path")
     
+    if [ "$DRY_RUN" = "true" ]; then
+        log_plan_create "Would upload file '$file_path' to s3://$bucket_name/$file_name"
+        return 0
+    fi
+
     aws s3 cp "$file_path" "s3://$bucket_name/$file_name"
     
     if [ $? -eq 0 ]; then
@@ -229,6 +262,10 @@ upload_file_to_bucket() {
 display_bucket_info() {
     local bucket_name="$1"
     
+    if [ "$DRY_RUN" = "true" ]; then
+        return 0
+    fi
+
     print_separator
     echo -e "${GREEN}S3 Bucket Created Successfully${NC}"
     print_separator
