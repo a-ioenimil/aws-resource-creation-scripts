@@ -1,5 +1,7 @@
 # AWS Resource Creation Scripts
 
+<video src="assets/videos/aws_resource_creation.mp4" controls autoplay loop muted></video>
+
 Automated tools for creating and managing AWS resources including EC2 instances, Security Groups, and S3 buckets. This project provides both direct **Bash scripts** and a modern **Go CLI** wrapper for a better user experience.
 
 ## 📋 Project Overview
