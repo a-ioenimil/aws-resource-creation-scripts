@@ -4,7 +4,7 @@
 
 Automated tools for creating and managing AWS resources including EC2 instances, Security Groups, and S3 buckets. This project provides both direct **Bash scripts** and a modern **Go CLI** wrapper for a better user experience.
 
-## 📋 Project Overview
+## Project Overview
 
 This project provides a comprehensive suite of tools to automate the provisioning of AWS infrastructure. You can choose between running raw Bash scripts for direct control or using our interactive CLI tool (`aws-automator`) for a more guided, user-friendly experience.
 
@@ -21,7 +21,7 @@ This project provides a comprehensive suite of tools to automate the provisionin
 - **Idempotency**: Scripts check for existing resources before creation
 - **Auto-installation**: AWS CLI is automatically installed if not present
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 aws-resource-creation-scripts/
@@ -46,7 +46,7 @@ aws-resource-creation-scripts/
 └── files/                              # Sample files for S3 upload
 ```
 
-## ⚙️ Prerequisites
+## Prerequisites
 
 ### 1. Environment Configuration
 
@@ -273,7 +273,7 @@ chmod +x scripts/*.sh
 ./scripts/cleanup_resources.sh --force
 ```
 
-## 📖 Tool Details
+## Tool Details
 
 ### Go CLI Tool (`aws-automator`)
 
@@ -429,7 +429,7 @@ Safely terminates all resources created by the scripts.
 ./scripts/cleanup_resources.sh --force
 ```
 
-## 🔒 Security & Reliability
+## Security & Reliability
 
 ### State Management & Locking
 This tool uses a local JSON file (`created_resources.json`) to track created resources for easier cleanup. To prevent data corruption from concurrent executions, we have implemented:
@@ -469,14 +469,14 @@ export HTTP_PORT="80"
 export S3_BUCKET_PREFIX="automation-lab"
 ```
 
-## 🏷️ Resource Tagging
+## Resource Tagging
 
 All resources are tagged with:
 - `Project=AutomationLab` - Used for resource identification and cleanup
 - `Environment=dev` - Environment designation
 - `Name=<resource-name>` - Human-readable name
 
-## 🔒 Security Considerations
+## Security Considerations
 
 1. **SSH Access**: By default, SSH (port 22) is open to `0.0.0.0/0` (public). For production environments, restrict to specific IP ranges by modifying `SSH_CIDR` in `config/config.sh`.
 
@@ -489,7 +489,7 @@ All resources are tagged with:
 
 4. **IAM Best Practices**: Use IAM roles with least privilege. Consider using AWS Organizations SCPs for additional guardrails.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -523,7 +523,7 @@ BucketAlreadyExists
 ```
 **Solution:** S3 bucket names are globally unique. The script generates unique names, but if you specify a name manually, ensure it's unique.
 
-## 📝 Challenges and Resolutions
+## Challenges and Resolutions
 
 | Challenge | Resolution |
 |-----------|------------|
@@ -534,6 +534,6 @@ BucketAlreadyExists
 | Key pair private key only shown once | Immediate save to file with proper permissions |
 | AWS CLI may not be installed | Added automatic installation for Linux and macOS |
 
-## 👥 Authors
+## Authors
 
 - **Isaac Obo Enimil** 
