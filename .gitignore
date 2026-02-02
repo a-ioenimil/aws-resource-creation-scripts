@@ -7,7 +7,7 @@ keys/*.pem
 
 # Go Binaries
 bin/
-aws-automator
+
 
 # Resource tracking
 created_resources.json
